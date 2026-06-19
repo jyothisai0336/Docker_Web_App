@@ -54,20 +54,74 @@ The Jenkins pipeline automates the full path from commit to deployment:
 
 ```groovy
 pipeline {
-    agent any
+    agent {
+        node {
+            label 'dev'
+        }
+    }
+tools{
+    maven 'mymaven'
+}
+environment{
+    scanner_home=tool 'mysonar'
+}
+
     stages {
-        stage('Checkout') { steps { checkout scm } }
-        stage('Build') { steps { sh 'docker build -t <dockerhub-user>/social-platform:${BUILD_NUMBER} .' } }
-        stage('Code Quality') { steps { sh 'sonar-scanner' } }
-        stage('Security Scan') { steps { sh 'trivy image <dockerhub-user>/social-platform:${BUILD_NUMBER}' } }
-        stage('Push to DockerHub') {
+        stage('CleanWs') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh 'docker push <dockerhub-user>/social-platform:${BUILD_NUMBER}'
+                cleanWs()
+            }
+        }
+        stage('Code'){
+            steps{
+                git 'https://github.com/jyothisai0336/Docker_Web_App.git'
+            }
+        }
+        stage('CQA'){
+            steps{
+                withSonarQubeEnv('mysonar') {
+                    sh "mvn clean verify sonar:sonar -Dsonar.projectKey=Docker"
                 }
             }
         }
-        stage('Deploy to Swarm') { steps { sh 'docker stack deploy -c docker-compose.yml social_platform' } }
+        stage('Quality Gates'){
+            steps{
+                waitForQualityGate abortPipeline: false, credentialsId: 'mysonar'
+            }
+        }
+        stage('Build'){
+            steps{
+                sh 'mvn clean package'
+                sh 'cp -r target Docker-app'
+            }
+        }
+        stage('Docker_Build'){
+            steps{
+                    sh 'docker build -t jyothisai33/docker:app-image Docker-app'
+                    sh 'docker build -t jyothisai33/docker:db-image Docker-db'
+            }
+        }
+        stage('Img-scan'){
+            steps{
+                sh 'trivy image jyothisai33/docker:app-image'
+                sh 'trivy image jyothisai33/docker:db-image'
+            }
+        }
+        stage('push'){
+            steps{
+                script{
+                    withDockerRegistry(credentialsId: 'docker') {
+                    sh 'docker push jyothisai33/docker:app-image'
+                    sh 'docker push jyothisai33/docker:db-image'
+                }
+            }
+        }
+        }
+        stage('Stack'){
+            steps{
+                sh'docker stack deploy myapp --compose-file=compose.yml'
+            }
+        }
     }
 }
 ```
