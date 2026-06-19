@@ -168,8 +168,6 @@ docker-compose up --build
 Being upfront about current gaps:
 
 - **No HTTPS yet** — currently served over HTTP; TLS termination (e.g. via Nginx reverse proxy + Let's Encrypt) is a planned next step.
-- *[Add any other known gaps, e.g. the CSRF/Spring Security item if resolved or still open]*
-
 ---
 
 ## 📈 What This Project Demonstrates
